@@ -1,0 +1,531 @@
+Option Compare Database
+Dim OrdNo, strClient As String
+Private Sub btnInsert_Click()
+    DoCmd.SetWarnings False
+    DoCmd.RunSQL "INSERT INTO [Orders]([NumberOrder],[Supplier],[Item], [Quantity], [Client]) VALUES('" & _
+        Me.txtOrdNo.Value & "','" & Me.cmbSupplier.Value & "','" & Me.cmbItem.Value & "','" & _
+        Me.txtQty.Value & "','" & Me.cmbClient.Value & "');"
+    DoCmd.RunSQL "INSERT INTO [Payment]([OrderNo]) VALUES('" & Me.txtOrdNo.Value & "');"
+    Me.txtOrdNo.Value = ""
+    Me.cmbSupplier.Value = ""
+    Me.cmbItem.Value = ""
+    Me.txtClient.Value = ""
+    Me.txtQty.Value = ""
+    DoCmd.SetWarnings True
+    Me.txtOrdNo.Value = Forms![frmOrders]![cmbOrdNo].Value
+End Sub
+--------------------------------------------------------------------------------------------------------------------------------------
+Private Sub cmbSupplier_Click()
+Me.cmbItem.RowSource = "SELECT Item FROM Orders WHERE Supplier = '" & cmbSupplier.Value & "';"
+End Sub
+-----------------------------------------------------------------------------------------------------------------------------------
+Private Sub Form_Load()
+Me.txtOrdNo.Value = Forms![frmOrders].[cmbOrdNo].Value
+Me.cmbClient.RowSource = "SELECT Client FROM Orders WHERE NumberOrder ='" & Forms![frmOrders].[cmbOrdNo].Value & "';"
+End Sub
+------------------------------------------------------------------------------------------------------------------------------------
+Private Sub txtOrdNo_AfterUpdate()
+Me.cmbClient.RowSource = "SELECT Client FROM Orders WHERE NumberOrder ='" & Me.txtOrdNo.Value & "';"
+Me.cmbClient.Value = Me.cmbClient.Column(0, 0)
+End Sub
+--------------------------------------------------------------------------------------------------------------------------------------
+Option Compare Database
+Dim tb As Recordset
+
+Private Sub btnClose_Click()
+DoCmd.Close
+End Sub
+----------------------------------------------------------------------------------------------------------------------------------
+Private Sub cmbOrders_Change()
+Set tb = CurrentDb.OpenRecordset("SELECT [OrderValue],[OrderDate],[PaymentValue] FROM Payment WHERE [Payment].[OrderNo] ='" & Me.cmbOrders.Value & "'")
+Me.txtValue.Value = tb.Fields(0).Value
+Me.txtDateOrder.Value = tb.Fields(1).Value
+Me.txtPayment.Value = tb.Fields(2).Value
+End Sub
+--------------------------------------------------------------------------------------------------------------------------------------
+Private Sub Form_Load()
+Me.cmbOrders.Requery
+Me.cmbOrders.SetFocus
+Me.cmbOrders.Value = Me.cmbOrders.Column(1, 1)
+Set tb = CurrentDb.OpenRecordset("SELECT [OrderValue],[OrderDate], [PaymentValue] FROM Payment WHERE [Payment].[OrderNo] ='" & Me.cmbOrders.Column(1, 1) & "'")
+Me.txtValue.Value = tb.Fields(0).Value
+Me.txtDateOrder.Value = Format(tb.Fields(1).Value, "dd/mm/yyyy")
+Me.txtPayment.Value = tb.Fields(2).Value
+DoCmd.SetWarnings False
+End Sub
+--------------------------------------------------------------------------------------------------------------------------------------
+Private Sub Form_Unload(Cancel As Integer)
+'Set tb = CurrentDb.OpenRecordset("SELECT [OrderValue], [PaymentValue] FROM Payment WHERE [Payment].[OrderNo] ='" & Me.cmbOrders.Value & "'")
+tb.Close
+Set tb = Nothing
+Forms![frmOrders].Form.[Orders Subform].Requery
+End Sub
+Private Sub btnSave_Click()
+tb.Close
+Set tb = CurrentDb.OpenRecordset("SELECT [OrderValue], [PaymentValue],[OrderDate] FROM Payment WHERE [Payment].[OrderNo] ='" & Me.cmbOrders.Value & "'")
+If tb.RecordCount > 0 Then
+   DoCmd.RunSQL ("UPDATE Payment SET [OrderValue] = " & Me.txtValue.Value & ", [PaymentValue] = " & Me.txtPayment.Value & ",[OrderDate] = #" & Format(Me.txtDateOrder.Value, "yyyy-mm-dd") & "# WHERE [OrderNo] ='" & Me.cmbOrders.Value & "'")
+Else
+  DoCmd.RunSQL ("INSERT INTO Payment([OrderNo],[OrderDate],[OrderValue],[PaymentValue]) VALUES('" & Me.cmbOrders.Value & "',#" & Format(Me.txtDateOrder.Value, "yyyy-mm-dd") & "#," & Me.txtValue.Value & "," & Me.txtPayment.Value & ")")
+End If
+'Me.Dirty = False
+'Me.Requery
+Me.btnClose.SetFocus
+End Sub
+--------------------------------------------------------------------------------------------------------------------------------------
+Option Compare Database
+
+Private Sub btnFindClient_Click()
+DoCmd.OpenForm "frmFindClient"
+End Sub
+
+Private Sub btnGotoOrder_Click()
+'Dim myXL As Excel.Application
+Dim strBackEndPath As String, lenPath As Integer, i As Integer, j As Integer
+Dim myXL As Object
+'Set myXl = New Excel.Application
+Set myXL = CreateObject("Excel.Application")
+strBackEndPath = CurrentDb.TableDefs("Orders").Connect
+If strBackEndPath = "" Then
+     strBackEndPath = CurrentProject.Path
+     GoTo phase1
+End If
+j = InStrRev(strBackEndPath, "=") + 1
+i = InStrRev(strBackEndPath, "DatabaseOrder Last_be") - j - 1
+strBackEndPath = Mid(strBackEndPath, j, i)
+phase1:
+Dim f As Office.FileDialog
+Set f = Application.FileDialog(msoFileDialogOpen)
+With f
+  .AllowMultiSelect = False
+  .InitialFileName = strBackEndPath & "\*" & CStr(Me.cmbOrdNo.Value) & "*.*"
+  .Filters.Clear
+'  .Filters.Add "Order " & CStr(Me.cmbOrdNo.Value) & "", "*" & CStr(Me.cmbOrdNo.Value) & "*.xlsm,* " & CStr(Me.cmbOrdNo.Value) & "*.xls, *" & CStr(Me.cmbOrdNo.Value) & "*.xlsx"
+  .Filters.Add "Your order ", "*.*"
+  If .show Then
+    SelectedFile = f.SelectedItems.Item(1)
+  Else
+    Exit Sub
+  End If
+End With
+myXL.Workbooks.Open SelectedFile
+myXL.Visible = True
+End Sub
+
+Private Sub chkPaid_Click()
+   Me("Label222").Visible = True
+   Me.chkPaid.Visible = True
+If Me.Label222.Caption = "Not Paid" Then
+    Me.Label222.Caption = "Paid 50%"
+    Me.Orders_Subform.Form.Supplier.BorderWidth = 1
+    Me.Orders_Subform.Form.Supplier.BorderColor = vbRed
+    Me.Orders_Subform.Form.txtItem.BorderWidth = 1
+    Me.Orders_Subform.Form.txtItem.BorderColor = vbRed
+    Me.Orders_Subform.Form.Quantity.BorderWidth = 1
+    Me.Orders_Subform.Form.Quantity.BorderColor = vbRed
+    Me.Orders_Subform.Form.Client.BorderWidth = 1
+    Me.Orders_Subform.Form.Client.BorderColor = vbRed
+    Me("chkPaid") = True
+    Me.Dirty = False
+    'CurrentDb.Execute ("UPDATE Orders SET Payment = 'Paid 50%' WHERE Number ='" & Me("txtOrderNumber") & "'")
+    CurrentDb.Execute ("UPDATE Payment SET Payment = 'Paid 50%' WHERE OrderNo ='" & Me("cmbOrdNo") & "'")
+     CurrentDb.Execute ("UPDATE Payment SET Payment = 'Paid 50%' WHERE OrderNo ='" & Me.Orders_Subform.Form.Controls("txtOrderNumber").Value & "'")
+ElseIf Me.Label222.Caption = "Paid 50%" Then
+    Me.Label222.Caption = "Paid full"
+    Me.Orders_Subform.Form.Supplier.BorderWidth = 1
+    Me.Orders_Subform.Form.Supplier.BorderColor = vbYellow
+    Me.Orders_Subform.Form.txtItem.BorderWidth = 1
+    Me.Orders_Subform.Form.txtItem.BorderColor = vbYellow
+    Me.Orders_Subform.Form.Quantity.BorderWidth = 1
+    Me.Orders_Subform.Form.Quantity.BorderColor = vbYellow
+    Me.Orders_Subform.Form.Client.BorderWidth = 1
+    Me.Orders_Subform.Form.Client.BorderColor = vbYellow
+    Me("chkPaid") = True
+    Me.Dirty = False
+    'CurrentDb.Execute ("UPDATE Orders SET Payment = 'Paid full' WHERE Number ='" & Me("txtOrderNumber") & "'")
+    'CurrentDb.Execute ("UPDATE Payment SET Payment = 'Paid Full' WHERE OrderNo ='" & Me("cmbOrdNo") & "'")
+    CurrentDb.Execute ("UPDATE Payment SET Payment = 'Paid Full' WHERE OrderNo ='" & Me.Orders_Subform.Form.Controls("txtOrderNumber").Value & "'")
+ElseIf Me.Label222.Caption = "Paid full" Then
+    Me.Form.Label222.Caption = "Not Paid"
+    Me.Orders_Subform.Form.Supplier.BorderWidth = 0
+    Me.Orders_Subform.Form.Supplier.BorderColor = vbWhite
+    Me.Orders_Subform.Form.txtItem.BorderWidth = 0
+    Me.Orders_Subform.Form.txtItem.BorderColor = vbWhite
+    Me.Orders_Subform.Form.Quantity.BorderWidth = 0
+    Me.Orders_Subform.Form.Quantity.BorderColor = vbWhite
+    Me.Orders_Subform.Form.Client.BorderWidth = 0
+    Me.Orders_Subform.Form.Client.BorderColor = vbWhite
+    Me("chkPaid") = False
+    Me.Dirty = False
+    'CurrentDb.Execute ("UPDATE Orders SET Payment = 'Paid full' WHERE Number ='" & Me("txtOrderNumber") & "'")
+    'CurrentDb.Execute ("UPDATE Payment SET Payment = '' WHERE OrderNo ='" & Me("cmbOrdNo") & "'")
+   CurrentDb.Execute ("UPDATE Payment SET Payment = '' WHERE OrderNo ='" & Me.Orders_Subform.Form.Controls("txtOrderNumber").Value & "'")
+End If
+End Sub
+
+Private Sub cmbClient_Change()
+Dim tb As Recordset
+Set tb = CurrentDb.OpenRecordset("SELECT Payment FROM Payment WHERE OrderNo IN (SELECT NumberOrder FROM Orders WHERE Client='" & Me.cmbClient.Value & "')")
+If tb.RecordCount Then
+    tb.MoveLast
+    If tb.RecordCount > 1 Then
+       MsgBox "This client has more than 1 order. Please filter according to order"
+       Me("Label26").Caption = CStr(tb.RecordCount) & " Orders"
+       Me.Label26.Visible = True
+       Me.Label26.BackColor = vbRed
+       Me.Label26.ForeColor = RGB(45, 4, 45)
+       Me.chkPaid.Visible = False
+    Else
+       Me("Label222").Visible = True
+       Me.chkPaid.Visible = True
+       Me.Label26.Visible = False
+        If tb.Fields(0).Value = "Paid full" Then
+           Me("Label222").Caption = "Paid full"
+           'Me.Orders_Subform.Form.Controls("chkPaid").Value = True
+           Me.Orders_Subform.Form.Supplier.BorderWidth = 1
+           Me.Orders_Subform.Form.Supplier.BorderColor = vbYellow
+           Me.Orders_Subform.Form.txtItem.BorderWidth = 1
+           Me.Orders_Subform.Form.txtItem.BorderColor = vbYellow
+           Me.Orders_Subform.Form.Quantity.BorderWidth = 1
+           Me.Orders_Subform.Form.Quantity.BorderColor = vbYellow
+           Me("chkPaid") = True
+        ElseIf tb.Fields(0).Value = "Paid 50%" Then
+           Me("Label222").Caption = "Paid 50%"
+           Me("chkPaid").Value = True
+           Me.Orders_Subform.Form.Supplier.BorderWidth = 1
+            Me.Orders_Subform.Form.Supplier.BorderColor = vbRed
+            Me.Orders_Subform.Form.txtItem.BorderWidth = 1
+            Me.Orders_Subform.Form.txtItem.BorderColor = vbRed
+            Me.Orders_Subform.Form.Quantity.BorderWidth = 1
+            Me.Orders_Subform.Form.Quantity.BorderColor = vbRed
+            Me.Orders_Subform.Form.Client.BorderWidth = 1
+            Me.Orders_Subform.Form.Client.BorderColor = vbRed
+             Me("chkPaid") = True
+        Else
+           Me("Label222").Caption = "Not Paid"
+           'Me.Orders_Subform.Form.Controls("chkPaid").Value = False
+           Me.Orders_Subform.Form.Supplier.BorderWidth = 0
+            Me.Orders_Subform.Form.Supplier.BorderColor = vbWhite
+            Me.Orders_Subform.Form.txtItem.BorderWidth = 0
+            Me.Orders_Subform.Form.txtItem.BorderColor = vbWhite
+            Me.Orders_Subform.Form.Quantity.BorderWidth = 0
+            Me.Orders_Subform.Form.Quantity.BorderColor = vbWhite
+            Me.Orders_Subform.Form.Client.BorderWidth = 0
+            Me.Orders_Subform.Form.Client.BorderColor = vbWhite
+             Me("chkPaid") = False
+        End If
+   End If
+End If
+tb.Close
+Set tb = Nothing
+End Sub
+
+'Private Sub cmbClient_Change()
+'Me.Orders_Subform.Form.AllowAdditions = False
+'End Sub
+
+Private Sub cmbClient_GotFocus()
+Me.Orders_Subform.LinkChildFields = "Client"
+Me.Orders_Subform.LinkMasterFields = "cmbClient"
+Me.cmbOrdNo.Value = ""
+Me.cmbItem.Value = ""
+Me.cmbClient.Requery
+End Sub
+
+Private Sub cmbItem_Change()
+Dim tb, td As Recordset
+Set tb = CurrentDb.OpenRecordset("SELECT Payment FROM Payment WHERE OrderNo IN (SELECT NumberOrder FROM Orders WHERE Item='" & Me.cmbItem.Value & "')")
+Me.Label26.Visible = False
+Me.chkPaid.Visible = True
+Set td = CurrentDb.OpenRecordset("SELECT Payment FROM Payment WHERE OrderNo IN (SELECT NumberOrder FROM Orders WHERE Item='" & Me.cmbItem.Value & "' GROUP BY NumberOrder )")
+td.MoveLast
+If td.RecordCount > 1 Then
+   MsgBox "This client has more than 1 order. Please filter according to order"
+   Me("Label26").Caption = CStr(td.RecordCount) & " Orders"
+   Me.Label26.Visible = True
+   Me.Label26.BackColor = vbRed
+   Me.Label26.ForeColor = RGB(45, 4, 45)
+   Me.chkPaid.Visible = False
+Else
+If tb.Fields(0).Value = "Paid full" Then
+   Me.Controls("Label222").Caption = "Paid full"
+   'Me.Orders_Subform.Form.Controls("chkPaid").Value = True
+   Me.Orders_Subform.Form.Supplier.BorderWidth = 1
+   Me.Orders_Subform.Form.Supplier.BorderColor = vbYellow
+   Me.Orders_Subform.Form.txtItem.BorderWidth = 1
+   Me.Orders_Subform.Form.txtItem.BorderColor = vbYellow
+   Me.Orders_Subform.Form.Quantity.BorderWidth = 1
+   Me.Orders_Subform.Form.Quantity.BorderColor = vbYellow
+   Me.Orders_Subform.Form.Client.BorderWidth = 1
+   Me.Orders_Subform.Form.Client.BorderColor = vbYellow
+   Me("chkPaid") = True
+ElseIf tb.Fields(0).Value = "Paid 50%" Then
+    Me.Controls("Label222").Caption = "Paid 50%"
+   ' Me.Orders_Subform.Form.Controls("chkPaid").Value = True
+    Me.Label222.Caption = "Paid 50%"
+    Me.Orders_Subform.Form.Supplier.BorderWidth = 1
+    Me.Orders_Subform.Form.Supplier.BorderColor = vbRed
+    Me.Orders_Subform.Form.txtItem.BorderWidth = 1
+    Me.Orders_Subform.Form.txtItem.BorderColor = vbRed
+    Me.Orders_Subform.Form.Quantity.BorderWidth = 1
+    Me.Orders_Subform.Form.Quantity.BorderColor = vbRed
+    Me.Orders_Subform.Form.Client.BorderWidth = 1
+    Me.Orders_Subform.Form.Client.BorderColor = vbRed
+    Me("chkPaid") = True
+Else
+   Me.Label222.Caption = "Not Paid"
+   Me.chkPaid.Value = False
+   Me.Orders_Subform.Form.Supplier.BorderWidth = 0
+    Me.Orders_Subform.Form.Supplier.BorderColor = vbWhite
+    Me.Orders_Subform.Form.txtItem.BorderWidth = 0
+    Me.Orders_Subform.Form.txtItem.BorderColor = vbWhite
+    Me.Orders_Subform.Form.Quantity.BorderWidth = 0
+    Me.Orders_Subform.Form.Quantity.BorderColor = vbWhite
+    Me.Orders_Subform.Form.Client.BorderWidth = 0
+    Me.Orders_Subform.Form.Client.BorderColor = vbWhite
+    Me("chkPaid") = False
+End If
+End If
+tb.Close
+Set tb = Nothing
+td.Close
+Set td = Nothing
+End Sub
+
+Private Sub cmbItem_Click()
+Me.Orders_Subform.LinkChildFields = "Item"
+Me.Orders_Subform.LinkMasterFields = "cmbItem"
+Me.cmbOrdNo.Value = ""
+Me.cmbClient.Value = ""
+Me.cmbClient.Requery
+End Sub
+
+Private Sub cmbOrdNo_Change()
+Dim tb As Recordset
+Set tb = CurrentDb.OpenRecordset("SELECT Payment FROM Payment WHERE OrderNo='" & Me.cmbOrdNo.Value & "'")
+Me.Label26.Visible = False
+Me.chkPaid.Visible = True
+If IsNull(Me.cmbOrdNo.Value) = False And tb.RecordCount > 0 Then
+    If tb.Fields(0).Value = "Paid full" Then
+       Me.Controls("Label222").Caption = "Paid full"
+       'Me.Orders_Subform.Form.Controls("chkPaid").Value = True
+       Me.Orders_Subform.Form.Supplier.BorderWidth = 1
+       Me.Orders_Subform.Form.Supplier.BorderColor = vbYellow
+       Me.Orders_Subform.Form.txtItem.BorderWidth = 1
+       Me.Orders_Subform.Form.txtItem.BorderColor = vbYellow
+       Me.Orders_Subform.Form.Quantity.BorderWidth = 1
+       Me.Orders_Subform.Form.Quantity.BorderColor = vbYellow
+       Me.Orders_Subform.Form.Client.BorderWidth = 1
+       Me.Orders_Subform.Form.Client.BorderColor = vbYellow
+       Me("chkPaid") = True
+    ElseIf tb.Fields(0).Value = "Paid 50%" Then
+        Me.Controls("Label222").Caption = "Paid 50%"
+       ' Me.Orders_Subform.Form.Controls("chkPaid").Value = True
+        Me.Label222.Caption = "Paid 50%"
+        Me.Orders_Subform.Form.Supplier.BorderWidth = 1
+        Me.Orders_Subform.Form.Supplier.BorderColor = vbRed
+        Me.Orders_Subform.Form.txtItem.BorderWidth = 1
+        Me.Orders_Subform.Form.txtItem.BorderColor = vbRed
+        Me.Orders_Subform.Form.Quantity.BorderWidth = 1
+        Me.Orders_Subform.Form.Quantity.BorderColor = vbRed
+        Me.Orders_Subform.Form.Client.BorderWidth = 1
+        Me.Orders_Subform.Form.Client.BorderColor = vbRed
+        Me("chkPaid") = True
+    Else
+       Me.Label222.Caption = "Not Paid"
+       Me.chkPaid.Value = False
+       Me.Orders_Subform.Form.Supplier.BorderWidth = 0
+        Me.Orders_Subform.Form.Supplier.BorderColor = vbWhite
+        Me.Orders_Subform.Form.txtItem.BorderWidth = 0
+        Me.Orders_Subform.Form.txtItem.BorderColor = vbWhite
+        Me.Orders_Subform.Form.Quantity.BorderWidth = 0
+        Me.Orders_Subform.Form.Quantity.BorderColor = vbWhite
+        Me.Orders_Subform.Form.Client.BorderWidth = 0
+        Me.Orders_Subform.Form.Client.BorderColor = vbWhite
+        Me("chkPaid") = False
+    End If
+End If
+tb.Close
+Set tb = Nothing
+End Sub
+
+Private Sub cmbOrdNo_Click()
+'Me.Orders_Subform.LinkChildFields = ""
+Me.cmbOrdNo.Requery
+End Sub
+
+Private Sub cmbOrdNo_GotFocus()
+Me.Orders_Subform.LinkChildFields = "NumberOrder"
+Me.Orders_Subform.LinkMasterFields = "cmbOrdNo"
+Me.cmbClient.Value = ""
+Me.cmbOrdNo.Requery
+End Sub
+
+Private Sub cmdAddNewR_Click()
+'Me.Orders_Subform.Form.Client.Value = ""
+'Me.Orders_Subform.Form.AllowAdditions = True
+DoCmd.OpenForm "InsertForm", AcFormView.acNormal
+End Sub
+
+Private Sub Command15_Click()
+DoCmd.Close
+DoCmd.Quit
+End Sub
+
+Private Sub Command23_Click()
+r = MsgBox("Do you really want to delete present row?", vbYesNo)
+   If r = vbYes Then
+       CurrentDb.Execute ("DELETE FROM Orders WHERE Supplier='" & Me.Orders_Subform.Form!Supplier & "' AND  NumberOrder ='" & _
+                   Me.Orders_Subform.Form!txtOrderNumber & "' AND Item ='" & Me.Orders_Subform.Form!txtItem & "'")
+     If DCount("NumberOrder", "Orders", "NumberOrder='& Me.Orders_Subform.Form!txtOrderNumber &'") < 1 Then
+       CurrentDb.Execute ("DELETE FROM Payment WHERE OrderNo='" & Me.cmbOrdNo.Value & "'")
+     End If
+      Me.cmbOrdNo.Requery
+      Me.cmbOrdNo = Me.cmbOrdNo.Column(0, 0)
+      Me.Requery
+   End If
+End Sub
+
+Private Sub Command27_Click()
+DoCmd.OpenForm "Delete Orders", acNormal
+End Sub
+
+Private Sub Command32_Click()
+DoCmd.OpenForm "frmChangeOrderNo", acNormal
+End Sub
+
+Private Sub Command33_Click()
+DoCmd.OpenForm "frmReports", acViewNormal
+End Sub
+
+Private Sub Command34_Click()
+DoCmd.OpenForm "frmValue", AcFormView.acNormal
+End Sub
+
+Private Sub Form_Load()
+Me.cmbOrdNo.Requery
+Me.cmbOrdNo = Me.cmbOrdNo.Column(0, 0)
+DoCmd.MoveSize -20, 25
+Me.cmbOrdNo.SetFocus
+Dim tb As Recordset
+Me.Label26.Visible = False
+Set tb = CurrentDb.OpenRecordset("SELECT Payment FROM Payment WHERE OrderNo='" & Me.cmbOrdNo.Value & "'")
+If tb.RecordCount > 0 Then
+    If tb.Fields(0).Value = "Paid full" Then
+       Me.Controls("Label222").Caption = "Paid full"
+       Me.Controls("chkPaid").Value = True
+    ElseIf tb.Fields(0).Value = "Paid 50%" Then
+       Me.Label222.Caption = "Paid 50%"
+       Me.chkPaid.Value = True
+    Else
+       Me.Controls("Label222").Caption = "Not Paid"
+       Me.Controls("chkPaid").Value = False
+    End If
+End If
+tb.Close
+Set tb = Nothing
+End Sub
+
+Option Compare Database
+
+Private Sub btnSearchClient_Click()
+'Dim rst As DAO.Recordset
+'Set rst = CurrentDb.OpenRecordset("SELECT Client, Number from Orders WHERE Client LIKE '*" & Me.txtSearchClient.Value & "*' GROUP BY Number, Client")
+'rst.FindFirst ("Client LIKE '*" & Me.Controls("txtSearchClient").Value & "*'")
+'Me.subFrmClientsFound.Form.RecordSource = ""
+'Me.subFrmClientsFound.Form.RecordSource = "SELECT Client, NumberOrder FROM Orders WHERE Client LIKE '*" & Me.txtSearchClient.Value & "*' GROUP BY NumberOrder, Client"
+'Me.subFrmClientsFound.Form.Recordset = rst
+Me.subFrmClientsFound.Form.Filter = "Client LIKE '*" & Me.txtSearchClient.Value & "*'"
+Me.subFrmClientsFound.Form.FilterOn = True
+Me.subFrmClientsFound.Visible = True
+Me.InsideHeight = 6000
+'rst.Close
+'Set rst = Nothing
+End Sub
+--------------------------------------------------------------------------------------------------------------------------------------
+Private Sub Command5_Click()
+DoCmd.Close
+End Sub
+--------------------------------------------------------------------------------------------------------------------------------------
+Private Sub Form_Load()
+Me.InsideHeight = 2000
+End Sub
+--------------------------------------------------------------------------------------------------------------------------------------
+Option Compare Database
+
+Private Sub Command5_Click()
+  CurrentDb.Execute ("DELETE FROM Orders WHERE Val(NumberOrder) BETWEEN " & CInt(Me.Text0.Value) & " AND " & CInt(Me.Text2.Value) & "")
+  CurrentDb.Execute ("DELETE FROM Payment WHERE Val(OrderNo) BETWEEN " & CInt(Me.Text0.Value) & " AND " & CInt(Me.Text2.Value) & "")
+  Forms!frmOrders.Requery
+  Forms.Item("frmOrders").Controls("cmbOrdNo").Requery
+  Forms.Item("frmOrders").Controls("cmbOrdNo").Value = Forms.Item("frmOrders").Controls("cmbOrdNo").Column(0, 0)
+End Sub
+--------------------------------------------------------------------------------------------------------------------------------------
+Option Compare Database
+
+Private Sub btnClose_Click()
+DoCmd.Close
+End Sub
+--------------------------------------------------------------------------------------------------------------------------------------
+Private Sub btnSave_Click()
+Dim sql As String
+sql1 = "UPDATE Orders SET NumberOrder ='" & CStr(Me.txtNewNumber.Value) & "' WHERE Client ='" & Trim(CStr(Me.cmbClientName.Value)) & "';"
+sql2 = "UPDATE Payment SET OrderNo ='" & CStr(Me.txtNewNumber.Value) & "' WHERE OrderNo = '" & Me.txtOrderNo.Value & "';"
+CurrentDb.Execute sql1
+CurrentDb.Execute sql2
+Forms!frmOrders!cmbOrdNo.Requery
+End Sub
+--------------------------------------------------------------------------------------------------------------------------------------
+Private Sub txtOrderNo_AfterUpdate()
+Me.cmbClientName.RowSource = "SELECT Client FROM Orders WHERE NumberOrder ='" & Me.txtOrderNo.Value & "'"
+Me.cmbClientName.Value = Me.cmbClientName.Column(0, 0)
+End Sub
+--------------------------------------------------------------------------------------------------------------------------------------
+
+Option Compare Database
+
+Private Sub Command23_Click()
+DoCmd.Close
+End Sub
+--------------------------------------------------------------------------------------------------------------------------------------
+Private Sub Detail_Format(Cancel As Integer, FormatCount As Integer)
+Dim rst As Recordset
+Set rst = CurrentDb.OpenRecordset("SELECT Format([OrderDate],""mmmm\, yy""), Sum(Payment.OrderValue), (CLng(Year([OrderDate]) & CStr(Month([OrderDate]) + 10)))" _
+& "FROM Payment WHERE [OrderDate] Between #" & [Forms]![frmValueSelectDates]![txtDateFrom] & "# And #" & [Forms]![frmValueSelectDates]![txtDateTo] _
+& "# GROUP BY Format([OrderDate],""mmmm\, yy""), (CLng(Year([OrderDate]) & CStr(Month([OrderDate]) + 10))) ORDER BY (CLng(Year([OrderDate]) & CStr(Month([OrderDate]) + 10))) ASC;")
+If Me.Text21.Value = rst.RecordCount Then
+   Me.Line13.Visible = False
+End If
+End Sub
+--------------------------------------------------------------------------------------------------------------------------------------
+Private Sub Detail_Retreat()
+Dim rst As Recordset
+'Dim ul As Module
+'Set ul = Modules("Report_ReportSalesByMonth")
+Set rst = CurrentDb.OpenRecordset("SELECT Format([OrderDate],""mmmm\, yy""), Sum(Payment.OrderValue), (CLng(Year([OrderDate]) & CStr(Month([OrderDate]) + 10)))" _
+& "FROM Payment WHERE [OrderDate] Between #" & [Forms]![frmValueSelectDates]![txtDateFrom] & "# And #" & [Forms]![frmValueSelectDates]![txtDateTo] _
+& "# GROUP BY Format([OrderDate],""mmmm\, yy""), (CLng(Year([OrderDate]) & CStr(Month([OrderDate]) + 10))) ORDER BY (CLng(Year([OrderDate]) & CStr(Month([OrderDate]) + 10))) ASC;")
+If Me.Text21.Value = rst.RecordCount Then
+   Me.Line13.Visible = False
+End If
+End Sub
+------------------------------------------------------------------------------------------------------------
+Private Sub Report_Load()
+'If ul.Find("r =", x, y, 15, w) Then
+'  ul.ReplaceLine x, "r =" & r
+'Else
+'   ul.Find "Detail_Format", x, y, 15, w
+'   ul.InsertLines x + 1, "r =" & r
+'End If
+'Dim qry As QueryDef
+'Set qry = CurrentDb.QueryDefs("qryOrdBetweenDates")
+'qry.Parameters("StartDate").Value = [Forms]![frmValueSelectDates]![txtDateFrom].[Value]
+'qry.Parameters("EndDate").Value = [Forms]![frmValueSelectDates]![txtDateTo].[Value]
+'Me.RecordSource = "qryOrdBetweenDates"
+'Me.RecordSource = Me.OpenArgs
+'qry.sql = ""
+'qry.sql = "SELECT Format([OrderDate],""mmmm,yy"") AS DateMonth, Sum([OrderValue]) AS MonthValue FROM Payment WHERE [OrderDate] BETWEEN #" & Format([Forms]![frmValueSelectDates]![txtDateFrom].Value, "dd/mm/yyyy") & "# And #" & Format([Forms]![frmValueSelectDates]![txtDateTo].Value, "dd/mm/yyyy") & "# GROUP BY Format([OrderDate],""mmmm,yy"") ORDER BY Format([OrderDate],""mmmm,yy"") "
+'Me.RecordSource = "qryOrdBetweenDates"
+'Me.Filter = "[OrderDate] BETWEEN #" & [Forms]![frmValueSelectDates]![txtDateFrom].Value & "# And #" & [Forms]![frmValueSelectDates]![txtDateTo].Value & "#"
+'Me.Filter = True
+End Sub
